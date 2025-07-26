@@ -72,11 +72,11 @@ void ProcessRelocation(DLLDATA * dll, char * src, char * dst, IMAGE_BASE_RELOCAT
 
 ALLOCATED_MEMORY_LABEL GetLabelFromSectionHeader(IMAGE_SECTION_HEADER * sectionHdr) {
 	/* pic strings */
-	char text[]  = { '.', 't', 'e', 'x', 't', '\0' };
-	char rdata[] = { '.', 'r', 'd', 'a', 't', 'a', '\0' };
-	char data[]  = { '.', 'd', 'a', 't', 'a', '\0' };
-	char pdata[] = { '.', 'p', 'd', 'a', 't', 'a', '\0' };
-	char reloc[] = { '.', 'r', 'e', 'l', 'o', 'c', '\0' };
+	char text[]  = { '.', 't', 'e', 'x', 't', 0 };
+	char rdata[] = { '.', 'r', 'd', 'a', 't', 'a', 0 };
+	char data[]  = { '.', 'd', 'a', 't', 'a', 0 };
+	char pdata[] = { '.', 'p', 'd', 'a', 't', 'a', 0 };
+	char reloc[] = { '.', 'r', 'e', 'l', 'o', 'c', 0 };
 	
 	if (_strncmp((char *)sectionHdr->Name, (char *)text, IMAGE_SIZEOF_SHORT_NAME) == 0) {
 		return LABEL_TEXT;
@@ -276,7 +276,7 @@ DWORD SizeOfDLL(DLLDATA * data) {
 
 void LoadDLL(DLLDATA * dll, char * src, char * dst) {
 	/* copy our headers over to the destination address, if we wish */
-	__movsb((unsigned char *)dst, (unsigned char *)src, dll->OptionalHeader->SizeOfHeaders);
+	// __movsb((unsigned char *)dst, (unsigned char *)src, dll->OptionalHeader->SizeOfHeaders);
 
 	/* load our section data */
 	LoadSections(dll, src, dst);
