@@ -4,7 +4,7 @@ A small collection of [Crystal Palace](https://tradecraftgarden.org/crystalpalac
 
 ## Setup
 
-1. Download the Crystal Palace Release distrubtion.
+1. Download the Crystal Palace Release distribution.
 2. Extract the tar archive and copy `crystalpalace.jar` to the same directory as `cobaltstrike.exe`.
 3. Load `crystalpalace.cna` into Cobalt Strike.
 4. Profit.
@@ -15,4 +15,4 @@ Read more about Crystal Palace and the Tradecraft Garden [here](https://tradecra
 
 ### Notes
 
-1. I've only written for x64.
+1. I've only written for x64 architecture.
