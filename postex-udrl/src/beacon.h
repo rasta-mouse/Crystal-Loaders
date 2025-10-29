@@ -7,11 +7,7 @@
 
 #include <windows.h>
 
-typedef struct {
-   char* start; // The start address of the .rdata section
-   DWORD length; // The length (Size of Raw Data) of the .rdata section
-   DWORD offset; // The obfuscation start offset
-} RDATA_SECTION, *PRDATA_SECTION;
+
 
 typedef enum {
 	PURPOSE_EMPTY,
